@@ -4,87 +4,114 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Riconoscimenti anagrafici nei capoluoghi di regione</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Georgia', serif; background: #FDFBF8; color: #2E2E30; }
-  #header {
-    padding: 20px 24px 12px;
+
+  #wrap {
     max-width: 680px;
     margin: 0 auto;
+    padding: 0 20px;
   }
-  #header h1 {
+  h1 {
     font-size: 17px;
     font-weight: 700;
     line-height: 1.3;
-    margin-bottom: 6px;
+    margin: 20px 0 6px;
   }
-  #header p {
+  .subtitle {
     font-size: 13px;
     color: #666;
     line-height: 1.5;
+    margin-bottom: 16px;
   }
-  #map {
+
+  #map-container {
+    position: relative;
     width: 100%;
-    height: 480px;
-    background: #f0ede8;
   }
-  #footer {
-    padding: 10px 24px 16px;
-    max-width: 680px;
-    margin: 0 auto;
+  svg {
+    width: 100%;
+    height: auto;
+    display: block;
   }
+  .region {
+    fill: #EAE5DC;
+    stroke: #fff;
+    stroke-width: 1;
+  }
+  .bubble {
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .bubble:hover { opacity: 0.85; }
+
+  /* Tooltip */
+  #tooltip {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 9px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 200px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  #tooltip.visible { opacity: 1; }
+  .tt-city { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+  .tt-val { color: #C86040; font-weight: 700; }
+  .tt-note { color: #888; font-size: 12px; }
+
+  /* Legend */
   .legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 14px;
     font-size: 12px;
     color: #555;
     margin-top: 10px;
   }
-  .legend-item { display: flex; align-items: center; gap: 6px; }
-  .legend-dot {
-    width: 14px; height: 14px; border-radius: 50%;
-    background: #C86040; opacity: 0.75; flex-shrink: 0;
+  .leg-item { display: flex; align-items: center; gap: 6px; }
+  .leg-dot {
+    width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
   }
-  .legend-dot.zero { background: #aaa; }
-  .legend-dot.no-data { background: transparent; border: 1.5px dashed #aaa; }
   .source {
     font-size: 11px;
     color: #999;
     margin-top: 10px;
+    margin-bottom: 20px;
     line-height: 1.5;
   }
-  .leaflet-popup-content-wrapper {
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  }
-  .leaflet-popup-content {
-    font-family: 'Georgia', serif;
-    font-size: 13px;
-    line-height: 1.5;
-    margin: 10px 14px;
-  }
-  .popup-city { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
-  .popup-val { color: #C86040; font-weight: 700; }
-  .popup-note { color: #888; font-size: 12px; margin-top: 3px; }
 </style>
 </head>
 <body>
-
-<div id="header">
+<div id="wrap">
   <h1>I riconoscimenti anagrafici nei capoluoghi di regione, dopo la sentenza</h1>
-  <p>Riconoscimenti effettuati dal 22 maggio 2025 (sentenza n. 68/2025 della Corte Costituzionale). Dati raccolti tramite accesso civico generalizzato.</p>
-</div>
+  <p class="subtitle">Riconoscimenti effettuati dal 22 maggio 2025 (sentenza n. 68/2025 della Corte Costituzionale).<br>Dati raccolti tramite accesso civico generalizzato. Clicca sulle bolle per i dettagli.</p>
 
-<div id="map"></div>
+  <div id="map-container">
+    <svg id="map" viewBox="0 0 500 560"></svg>
+    <div id="tooltip"></div>
+  </div>
 
-<div id="footer">
   <div class="legend">
-    <div class="legend-item"><div class="legend-dot"></div> Riconoscimenti (dimensione ∝ per 100.000 ab.)</div>
-    <div class="legend-item"><div class="legend-dot zero"></div> Zero riconoscimenti</div>
-    <div class="legend-item"><div class="legend-dot no-data"></div> Dato non disponibile</div>
+    <div class="leg-item">
+      <div class="leg-dot" style="background:#C86040;opacity:0.75;"></div>
+      Riconoscimenti (dim. ∝ per 100.000 ab.)
+    </div>
+    <div class="leg-item">
+      <div class="leg-dot" style="background:#aaa;opacity:0.6;"></div>
+      Zero riconoscimenti
+    </div>
+    <div class="leg-item">
+      <div class="leg-dot" style="background:transparent;border:1.5px dashed #aaa;"></div>
+      Dato non disponibile
+    </div>
   </div>
   <p class="source">Fonte: Rita Nadir Nicotra / Lab24 – Il Sole 24 Ore. I dati si riferiscono sia ai riconoscimenti alla nascita sia a quelli successivi.</p>
 </div>
@@ -113,67 +140,103 @@ const cities = [
   {name:"Aosta",      lat:45.737, lon:7.318,  per100k:3.00, abs:1,     status:"data"},
 ];
 
-const map = L.map('map', {
-  center: [42.5, 12.5],
-  zoom: 6,
-  zoomControl: true,
-  scrollWheelZoom: false
+const maxPer100k = d3.max(cities.filter(c => c.per100k), c => c.per100k);
+const rScale = d3.scaleSqrt().domain([0, maxPer100k]).range([0, 30]);
+
+const svg = d3.select("#map");
+const tooltip = document.getElementById("tooltip");
+const container = document.getElementById("map-container");
+
+const projection = d3.geoMercator()
+  .center([12.5, 42.0])
+  .scale(2400)
+  .translate([250, 280]);
+
+const path = d3.geoPath().projection(projection);
+
+const GEOJSON_URL = "https://cdn.jsdelivr.net/gh/openpolis/geojson-italy@master/geojson/limits_IT_regions.geojson";
+
+d3.json(GEOJSON_URL).then(geo => {
+  // Draw regions
+  svg.selectAll(".region")
+    .data(geo.features)
+    .enter().append("path")
+    .attr("class", "region")
+    .attr("d", path);
+
+  // Draw bubbles
+  cities.forEach(c => {
+    const [x, y] = projection([c.lon, c.lat]);
+
+    if (c.status === "data") {
+      svg.append("circle")
+        .attr("class", "bubble")
+        .attr("cx", x).attr("cy", y)
+        .attr("r", rScale(c.per100k))
+        .attr("fill", "#C86040")
+        .attr("fill-opacity", 0.72)
+        .attr("stroke", "#C86040")
+        .attr("stroke-width", 1)
+        .on("click", (event) => showTooltip(event, c));
+    } else if (c.status === "zero") {
+      svg.append("circle")
+        .attr("class", "bubble")
+        .attr("cx", x).attr("cy", y)
+        .attr("r", 5)
+        .attr("fill", "#aaa")
+        .attr("fill-opacity", 0.5)
+        .attr("stroke", "#aaa")
+        .attr("stroke-width", 1)
+        .on("click", (event) => showTooltip(event, c));
+    } else {
+      svg.append("circle")
+        .attr("class", "bubble")
+        .attr("cx", x).attr("cy", y)
+        .attr("r", 6)
+        .attr("fill", "transparent")
+        .attr("stroke", "#aaa")
+        .attr("stroke-width", 1.5)
+        .attr("stroke-dasharray", "3,2")
+        .on("click", (event) => showTooltip(event, c));
+    }
+  });
+}).catch(() => {
+  svg.append("text")
+    .attr("x", 250).attr("y", 280)
+    .attr("text-anchor", "middle")
+    .attr("font-size", 13)
+    .attr("fill", "#999")
+    .text("Mappa non disponibile — controlla la connessione.");
 });
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  maxZoom: 10
-}).addTo(map);
-
-const maxPer100k = Math.max(...cities.filter(c => c.per100k).map(c => c.per100k));
-
-cities.forEach(c => {
-  let radius, color, fillOpacity, dashArray, popupHtml;
-
+function showTooltip(event, c) {
+  let html = `<div class="tt-city">${c.name}</div>`;
   if (c.status === "data") {
-    radius = 6 + (c.per100k / maxPer100k) * 28;
-    color = "#C86040";
-    fillOpacity = 0.72;
-    dashArray = null;
+    html += `<div><span class="tt-val">${c.abs} riconoscimenti</span></div>`;
+    html += `<div>${c.per100k.toFixed(2)} per 100.000 ab.</div>`;
   } else if (c.status === "zero") {
-    radius = 7;
-    color = "#aaa";
-    fillOpacity = 0.5;
-    dashArray = null;
+    html += `<div>Nessun riconoscimento effettuato</div>`;
   } else if (c.status === "partial") {
-    radius = 10;
-    color = "#C86040";
-    fillOpacity = 0.35;
-    dashArray = "4,3";
-  } else {
-    radius = 8;
-    color = "#aaa";
-    fillOpacity = 0;
-    dashArray = "4,3";
-  }
-
-  popupHtml = `<div class="popup-city">${c.name}</div>`;
-  if (c.status === "data") {
-    popupHtml += `<div><span class="popup-val">${c.abs} riconoscimenti</span></div>`;
-    popupHtml += `<div>${c.per100k.toFixed(2)} per 100.000 ab.</div>`;
-  } else if (c.status === "zero") {
-    popupHtml += `<div>Nessun riconoscimento effettuato</div>`;
-  } else if (c.status === "partial") {
-    popupHtml += `<div class="popup-note">Meno di 20 riconoscimenti<br>(dato esatto non comunicato per ragioni di privacy)</div>`;
+    html += `<div class="tt-note">Meno di 20 riconoscimenti<br>(dato parziale per ragioni di privacy)</div>`;
   } else if (c.status === "refused") {
-    popupHtml += `<div class="popup-note">Accesso civico rifiutato</div>`;
+    html += `<div class="tt-note">Accesso civico rifiutato</div>`;
   } else {
-    popupHtml += `<div class="popup-note">Dato non comunicato</div>`;
+    html += `<div class="tt-note">Dato non comunicato</div>`;
   }
+  tooltip.innerHTML = html;
 
-  L.circleMarker([c.lat, c.lon], {
-    radius: radius,
-    fillColor: color,
-    color: color,
-    weight: 1.5,
-    fillOpacity: fillOpacity,
-    dashArray: dashArray
-  }).bindPopup(popupHtml).addTo(map);
+  const rect = container.getBoundingClientRect();
+  const ex = event.clientX - rect.left;
+  const ey = event.clientY - rect.top;
+  tooltip.style.left = (ex + 12) + "px";
+  tooltip.style.top = (ey - 10) + "px";
+  tooltip.classList.add("visible");
+
+  setTimeout(() => tooltip.classList.remove("visible"), 3000);
+}
+
+document.addEventListener("click", e => {
+  if (!e.target.closest(".bubble")) tooltip.classList.remove("visible");
 });
 </script>
 </body>
